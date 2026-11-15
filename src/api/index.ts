@@ -147,11 +147,16 @@ export function floorMod(value: number, mod: number): number {
 }
 
 export function noteName(midi: number): string {
-  return `${NOTE_NAMES[floorMod(midi, 12)]}${Math.floor(midi / 12) - 1}`
+  return NOTE_NAMES[floorMod(midi, 12)]
 }
 
 export function pitchClassName(pitchClass: number): string {
   return NOTE_NAMES[floorMod(pitchClass, 12)]
+}
+
+/** Removes the octave suffix from a note name returned by the backend. */
+export function noteLabel(note: string): string {
+  return note.replace(/-?\d+$/, '')
 }
 
 // ===================== API =====================

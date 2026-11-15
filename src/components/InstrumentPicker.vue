@@ -6,8 +6,13 @@
     @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value || null)"
   >
     <option value="" disabled>{{ placeholder }}</option>
-    <option v-for="item in instruments" :key="item.id" :value="item.id">
-      {{ item.name }}{{ item.global ? ' · общий' : '' }}
+    <option
+      v-for="item in instruments"
+      :key="item.id"
+      :value="item.id"
+      :class="item.global ? 'option-global' : 'option-own'"
+    >
+      {{ item.name }}
     </option>
   </select>
 </template>
@@ -36,5 +41,13 @@ const emit = defineEmits<{ 'update:modelValue': [value: string | null] }>()
   border-radius: 4px;
   background: var(--color-surface);
   min-height: 42px;
+}
+
+.option-global {
+  font-weight: 700;
+}
+
+.option-own {
+  color: var(--color-accent);
 }
 </style>

@@ -5,7 +5,11 @@
       <select :value="pitchClass(midi)" @change="setNote(index, Number(($event.target as HTMLSelectElement).value))">
         <option v-for="(name, noteIndex) in NOTE_NAMES" :key="name" :value="noteIndex">{{ name }}</option>
       </select>
-      <select :value="octave(midi)" @change="setOctave(index, Number(($event.target as HTMLSelectElement).value))">
+      <select
+        :value="octave(midi)"
+        aria-label="Октава открытой струны"
+        @change="setOctave(index, Number(($event.target as HTMLSelectElement).value))"
+      >
         <option v-for="value in octaves" :key="value" :value="value">{{ value }}</option>
       </select>
       <span class="note-result">{{ noteName(midi) }}</span>
@@ -26,8 +30,7 @@
     >Добавить струну</button>
 
     <p class="hint">
-      Струны перечисляются от самой низкой к самой высокой. Открытая нота задаётся в MIDI-октавах:
-      C4 — это нота до первой октавы (MIDI 60).
+      Струны перечисляются от самой низкой к самой высокой. Октава нужна только для выбора высоты открытой струны.
     </p>
   </div>
 </template>

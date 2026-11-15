@@ -8,6 +8,7 @@
     </div>
 
     <Fretboard
+      v-if="view === 'fretboard'"
       :open-notes="openNotes"
       :frets="frets"
       :positions="fingering.positions"
@@ -16,14 +17,12 @@
       :show-mutes="showMutes"
     />
 
-    <Tablature :positions="fingering.positions" :open-notes="openNotes" :string-count="openNotes.length" />
-
-    <div class="notes">
-      <span v-for="(position, index) in fingering.positions" :key="index" class="note-chip">
-        {{ position.note }}
-        <small>стр. {{ position.string + 1 }} / лад {{ position.fret }}</small>
-      </span>
-    </div>
+    <Tablature
+      v-else
+      :positions="fingering.positions"
+      :open-notes="openNotes"
+      :string-count="openNotes.length"
+    />
   </div>
 </template>
 
@@ -40,10 +39,12 @@ const props = withDefaults(defineProps<{
   title?: string
   span?: number
   showMutes?: boolean
+  view?: 'fretboard' | 'tablature'
 }>(), {
   title: '',
   span: 5,
-  showMutes: false
+  showMutes: false,
+  view: 'fretboard'
 })
 
 const mutedCount = computed(() =>
@@ -91,26 +92,5 @@ const positionLabel = computed(() =>
 
 .badge.muted {
   background: var(--color-danger-soft);
-}
-
-.notes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-.note-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.25rem;
-  padding: 0.1rem 0.4rem;
-  border: 1px solid var(--color-row-border);
-  border-radius: 4px;
-  font-size: 0.78rem;
-}
-
-.note-chip small {
-  color: var(--color-muted);
-  font-size: 0.7rem;
 }
 </style>

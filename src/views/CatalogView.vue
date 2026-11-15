@@ -5,15 +5,38 @@
       <h1>Справочники</h1>
     </div>
     <p class="subtitle">
-      Общие справочники доступны всем. Свои инструменты, лады и аккорды видите только вы.
+      Общие записи доступны всем и выделены жирным, ваши собственные — цветом. Редактировать общие записи может только администратор.
     </p>
 
     <p v-if="error" class="error">{{ error }}</p>
 
-    <section class="catalog-section">
+    <div class="tabs" role="tablist" aria-label="Разделы справочника">
+      <button
+        v-for="tab in tabs"
+        :key="tab.value"
+        type="button"
+        class="tab"
+        role="tab"
+        :aria-selected="activeTab === tab.value"
+        :class="{ active: activeTab === tab.value }"
+        @click="activeTab = tab.value"
+      >
+        <AppIcon :name="tab.icon" />
+        <span>{{ tab.label }}</span>
+      </button>
+    </div>
+
+    <section v-if="activeTab === 'instruments'" class="catalog-section">
       <div class="section-head">
         <h2>Инструменты</h2>
-        <router-link class="add-btn" to="/catalog/instruments/new">+ Инструмент</router-link>
+        <router-link
+          class="icon-action"
+          to="/catalog/instruments/new"
+          title="Добавить инструмент"
+          aria-label="Добавить инструмент"
+        >
+          <AppIcon name="plus" />
+        </router-link>
       </div>
 
       <div v-if="instrumentsStoreInstance.isLoading && instruments.length === 0" class="empty">Загрузка…</div>
@@ -21,25 +44,48 @@
       <div v-else class="item-list">
         <div v-for="item in instruments" :key="item.id" class="item-row">
           <div class="item-main">
-            <strong>{{ item.name }}</strong>
+            <strong :class="entityClass(item.global)" :title="item.global ? 'Общий инструмент' : 'Мой инструмент'">
+              {{ item.name }}
+            </strong>
             <span class="meta">
               {{ item.frets }} ладов · строй:
               {{ item.tuning.map(noteName).join(' ') }}
             </span>
           </div>
-          <span class="badge">{{ item.global ? 'общий' : 'мой' }}</span>
           <div v-if="canEdit(item.global)" class="item-actions">
-            <router-link :to="`/catalog/instruments/${item.id}/edit`">Изменить</router-link>
-            <button type="button" @click="removeInstrument(item)">Удалить</button>
+            <router-link
+              class="icon-action"
+              :to="`/catalog/instruments/${item.id}/edit`"
+              title="Изменить"
+              aria-label="Изменить"
+            >
+              <AppIcon name="edit" />
+            </router-link>
+            <button
+              type="button"
+              class="icon-action danger"
+              title="Удалить"
+              aria-label="Удалить"
+              @click="removeInstrument(item)"
+            >
+              <AppIcon name="trash" />
+            </button>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="catalog-section">
+    <section v-else-if="activeTab === 'modes'" class="catalog-section">
       <div class="section-head">
         <h2>Лады</h2>
-        <router-link class="add-btn" to="/catalog/modes/new">+ Лад</router-link>
+        <router-link
+          class="icon-action"
+          to="/catalog/modes/new"
+          title="Добавить лад"
+          aria-label="Добавить лад"
+        >
+          <AppIcon name="plus" />
+        </router-link>
       </div>
 
       <div v-if="modesStoreInstance.isLoading && modes.length === 0" class="empty">Загрузка…</div>
@@ -47,22 +93,45 @@
       <div v-else class="item-list">
         <div v-for="item in modes" :key="item.id" class="item-row">
           <div class="item-main">
-            <strong>{{ item.name }}</strong>
+            <strong :class="entityClass(item.global)" :title="item.global ? 'Общий лад' : 'Мой лад'">
+              {{ item.name }}
+            </strong>
             <span class="meta">{{ formula(item.intervals) }}</span>
           </div>
-          <span class="badge">{{ item.global ? 'общий' : 'мой' }}</span>
           <div v-if="canEdit(item.global)" class="item-actions">
-            <router-link :to="`/catalog/modes/${item.id}/edit`">Изменить</router-link>
-            <button type="button" @click="removeMode(item)">Удалить</button>
+            <router-link
+              class="icon-action"
+              :to="`/catalog/modes/${item.id}/edit`"
+              title="Изменить"
+              aria-label="Изменить"
+            >
+              <AppIcon name="edit" />
+            </router-link>
+            <button
+              type="button"
+              class="icon-action danger"
+              title="Удалить"
+              aria-label="Удалить"
+              @click="removeMode(item)"
+            >
+              <AppIcon name="trash" />
+            </button>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="catalog-section">
+    <section v-else class="catalog-section">
       <div class="section-head">
         <h2>Аккорды</h2>
-        <router-link class="add-btn" to="/catalog/chords/new">+ Аккорд</router-link>
+        <router-link
+          class="icon-action"
+          to="/catalog/chords/new"
+          title="Добавить аккорд"
+          aria-label="Добавить аккорд"
+        >
+          <AppIcon name="plus" />
+        </router-link>
       </div>
 
       <div v-if="chordsStoreInstance.isLoading && chords.length === 0" class="empty">Загрузка…</div>
@@ -70,13 +139,29 @@
       <div v-else class="item-list">
         <div v-for="item in chords" :key="item.id" class="item-row">
           <div class="item-main">
-            <strong>{{ item.name }}</strong>
+            <strong :class="entityClass(item.global)" :title="item.global ? 'Общий аккорд' : 'Мой аккорд'">
+              {{ item.name }}
+            </strong>
             <span class="meta">{{ formula(item.intervals) }}</span>
           </div>
-          <span class="badge">{{ item.global ? 'общий' : 'мой' }}</span>
           <div v-if="canEdit(item.global)" class="item-actions">
-            <router-link :to="`/catalog/chords/${item.id}/edit`">Изменить</router-link>
-            <button type="button" @click="removeChord(item)">Удалить</button>
+            <router-link
+              class="icon-action"
+              :to="`/catalog/chords/${item.id}/edit`"
+              title="Изменить"
+              aria-label="Изменить"
+            >
+              <AppIcon name="edit" />
+            </router-link>
+            <button
+              type="button"
+              class="icon-action danger"
+              title="Удалить"
+              aria-label="Удалить"
+              @click="removeChord(item)"
+            >
+              <AppIcon name="trash" />
+            </button>
           </div>
         </div>
       </div>
@@ -87,6 +172,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import BackButton from '@/components/BackButton.vue'
+import AppIcon from '@/components/AppIcon.vue'
+import type { IconName } from '@/components/icons'
 import { instrumentsStore } from '@/stores/instruments'
 import { modesStore } from '@/stores/modes'
 import { chordsStore } from '@/stores/chords'
@@ -94,11 +181,20 @@ import { authStore } from '@/stores/auth'
 import type { Chord, Instrument, Mode } from '@/api'
 import { errorMessage, noteName } from '@/api'
 
+type CatalogTab = 'instruments' | 'modes' | 'chords'
+
+const tabs: { value: CatalogTab; label: string; icon: IconName }[] = [
+  { value: 'instruments', label: 'Инструменты', icon: 'instrument' },
+  { value: 'modes', label: 'Лады', icon: 'mode' },
+  { value: 'chords', label: 'Аккорды', icon: 'chord' }
+]
+
 const auth = authStore()
 const instrumentsStoreInstance = instrumentsStore()
 const modesStoreInstance = modesStore()
 const chordsStoreInstance = chordsStore()
 
+const activeTab = ref<CatalogTab>('instruments')
 const error = ref<string | null>(null)
 
 const instruments = computed(() => instrumentsStoreInstance.instruments)
@@ -107,6 +203,10 @@ const chords = computed(() => chordsStoreInstance.chords)
 
 function canEdit(global: boolean): boolean {
   return !global || auth.isAdmin
+}
+
+function entityClass(global: boolean): string {
+  return global ? 'entity-global' : 'entity-own'
 }
 
 function formula(intervals: number[]): string {
@@ -168,7 +268,7 @@ h1 {
 
 .subtitle {
   color: var(--color-muted);
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
   font-size: 0.92rem;
 }
 
@@ -187,21 +287,6 @@ h1 {
 
 .section-head h2 {
   font-size: 1.15rem;
-}
-
-.add-btn {
-  display: inline-block;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface);
-  color: var(--color-primary);
-  text-decoration: none;
-  font-size: 0.88rem;
-}
-
-.add-btn:hover {
-  background: var(--color-primary-soft);
 }
 
 .item-list {
@@ -239,33 +324,10 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.badge {
-  font-size: 0.72rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: 4px;
-  background: var(--color-primary-soft);
-  color: var(--color-text);
-  white-space: nowrap;
-}
-
 .item-actions {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 0.85rem;
-}
-
-.item-actions a {
-  color: var(--color-primary);
-}
-
-.item-actions button {
-  border: none;
-  background: none;
-  color: var(--color-danger);
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0.2rem;
+  gap: 0.4rem;
 }
 
 .error {

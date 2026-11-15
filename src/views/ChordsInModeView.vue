@@ -15,11 +15,8 @@
       </label>
       <div class="control">
         <span>Тоника лада</span>
-        <TonicPicker v-model="tonic" :min-octave="1" :max-octave="7" />
+        <TonicPicker v-model="tonic" />
       </div>
-      <button class="build-btn" :disabled="!modeId || matching.isLoading" @click="load">
-        {{ matching.isLoading ? 'Ищем…' : 'Найти аккорды' }}
-      </button>
     </div>
 
     <p v-if="matching.error" class="error">{{ matching.error }}</p>
@@ -29,21 +26,57 @@
     </div>
 
     <template v-else-if="matching.chordsInMode.length > 0">
-      <div class="results-head">
-        <h2>{{ modeName }} · {{ noteName(tonic) }}</h2>
+      <div class="list-meta">
         <span class="count">аккордов: {{ matching.chordsInMode.length }}</span>
       </div>
 
       <div class="chord-list">
-        <div v-for="item in matching.chordsInMode" :key="`${item.chordId}-${item.degree}`" class="chord-row">
+        <div v-for="item in matching.chordsInMode" :key="rowKey(item)" class="chord-row">
           <div class="chord-main">
-            <strong>{{ item.chordName }}</strong>
-            <span class="root">на {{ item.rootNote }}</span>
+            <strong
+              class="chord-name"
+              :class="entityClass(item.global)"
+              :title="item.global ? 'Общий аккорд' : 'Мой аккорд'"
+            >
+              <span class="chord-tonic">{{ noteLabel(item.rootNote) }}</span>
+              <span>{{ item.chordName }}</span>
+            </strong>
           </div>
-          <span class="degree">ступень {{ item.degree + 1 }}</span>
-          <code class="formula">{{ degrees(item.intervals) }}</code>
-          <span v-if="item.global" class="badge">общий</span>
-          <button class="link-btn" @click="openShapes(item)">Аппликатуры</button>
+
+          <div class="row-actions">
+            <div class="info-wrap">
+              <button
+                type="button"
+                class="icon-action"
+                title="Ступень и структура"
+                aria-label="Ступень и структура"
+                :aria-expanded="openInfo === rowKey(item)"
+                @click="toggleInfo(item)"
+              >
+                <AppIcon name="info" />
+              </button>
+              <div v-if="openInfo === rowKey(item)" class="info-popover" role="dialog">
+                <div class="info-line">
+                  <span>Ступень</span>
+                  <strong>{{ item.degree + 1 }}</strong>
+                </div>
+                <div class="info-line">
+                  <span>Структура</span>
+                  <code>{{ degrees(item.intervals) }}</code>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="icon-action"
+              title="Аппликатуры"
+              aria-label="Аппликатуры"
+              @click="openShapes(item)"
+            >
+              <AppIcon name="shapes" />
+            </button>
+          </div>
         </div>
       </div>
     </template>
@@ -55,30 +88,61 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BackButton from '@/components/BackButton.vue'
 import ModePicker from '@/components/ModePicker.vue'
 import TonicPicker from '@/components/TonicPicker.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import { modesStore } from '@/stores/modes'
 import { matchingStore } from '@/stores/matching'
 import type { ChordInMode } from '@/api'
-import { noteName } from '@/api'
+import { MAX_MIDI, MIN_MIDI, noteLabel } from '@/api'
 
+const route = useRoute()
 const router = useRouter()
 const modesStoreInstance = modesStore()
 const matching = matchingStore()
 
-const modeId = ref<string | null>(null)
-const tonic = ref(60)
+const modeId = ref<string | null>(queryString('modeId'))
+const tonic = ref(initialTonic())
 const ready = ref(false)
+const openInfo = ref<string | null>(null)
 
-const modeName = computed(() => modesStoreInstance.modes.find(item => item.id === modeId.value)?.name ?? 'Лад')
+function initialTonic(): number {
+  const value = queryNumber('tonic')
+  return value !== null && value >= MIN_MIDI && value <= MAX_MIDI ? value : 60
+}
+
+function queryString(key: string): string | null {
+  const value = route.query[key]
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function queryNumber(key: string): number | null {
+  const raw = queryString(key)
+  if (!raw) return null
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
+}
+
+function rowKey(item: ChordInMode): string {
+  return `${item.chordId}-${item.rootMidi}-${item.degree}`
+}
+
+function entityClass(global: boolean): string {
+  return global ? 'entity-global' : 'entity-own'
+}
 
 function degrees(intervals: number[]): string {
   const result = [0]
   intervals.forEach((step, index) => result.push(result[index] + step))
   return result.join(' · ')
+}
+
+function toggleInfo(item: ChordInMode) {
+  const key = rowKey(item)
+  openInfo.value = openInfo.value === key ? null : key
 }
 
 function openShapes(item: ChordInMode) {
@@ -95,14 +159,16 @@ function openShapes(item: ChordInMode) {
 
 async function load(): Promise<void> {
   if (!modeId.value) return
+  openInfo.value = null
   await matching.loadChordsInMode(modeId.value, tonic.value)
 }
 
 onMounted(async () => {
   await modesStoreInstance.load()
-  if (!modeId.value) {
-    modeId.value = modesStoreInstance.modes[0]?.id ?? null
-  }
+  const requestedModeId = modeId.value
+  modeId.value = modesStoreInstance.modes.find(item => item.id === requestedModeId)?.id
+    ?? modesStoreInstance.modes[0]?.id
+    ?? null
   ready.value = true
   await load()
 })
@@ -157,33 +223,10 @@ h1 {
   color: var(--color-muted);
 }
 
-.build-btn {
-  padding: 0.55rem 1.2rem;
-  border: 1px solid var(--color-primary);
-  border-radius: 4px;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  cursor: pointer;
-  min-height: 42px;
-  font-size: 1rem;
-}
-
-.build-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.results-head {
+.list-meta {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.6rem;
-}
-
-.results-head h2 {
-  font-size: 1.15rem;
+  justify-content: flex-end;
+  margin-bottom: 0.45rem;
 }
 
 .count {
@@ -211,46 +254,64 @@ h1 {
 .chord-main {
   display: flex;
   align-items: baseline;
-  gap: 0.45rem;
   flex-wrap: wrap;
   margin-right: auto;
+  min-width: 0;
 }
 
-.root {
-  color: var(--color-muted);
-  font-size: 0.88rem;
+.chord-name {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  overflow-wrap: anywhere;
 }
 
-.degree {
-  font-size: 0.8rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: 4px;
-  background: var(--color-primary-soft);
-  white-space: nowrap;
+.chord-tonic {
+  font-size: 1.05em;
 }
 
-.formula {
-  color: var(--color-muted);
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.info-wrap {
+  position: relative;
+}
+
+.info-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 210px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 10px 24px var(--color-overlay);
   font-size: 0.85rem;
 }
 
-.badge {
-  font-size: 0.72rem;
+.info-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.info-line > span {
   color: var(--color-muted);
 }
 
-.link-btn {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-bg);
-  color: var(--color-primary);
-  cursor: pointer;
-  min-height: 36px;
-}
-
-.link-btn:hover {
-  background: var(--color-primary-soft);
+.info-line code {
+  color: var(--color-text);
+  white-space: nowrap;
 }
 
 .error {

@@ -17,7 +17,7 @@
         </div>
         <div class="row-control">
           <span>Тоника аккорда</span>
-          <TonicPicker v-model="row.tonic" :min-octave="1" :max-octave="7" />
+          <TonicPicker v-model="row.tonic" />
         </div>
         <button
           class="remove-btn"
@@ -52,12 +52,32 @@
       <div class="match-list">
         <div v-for="item in matching.modeMatches" :key="`${item.modeId}-${item.tonicPitchClass}`" class="match-row">
           <div class="match-main">
-            <strong>{{ item.modeName }}</strong>
-            <span class="tonic">тоника {{ item.tonicNote }}</span>
+            <strong :class="entityClass(item.global)" :title="item.global ? 'Общий лад' : 'Мой лад'">
+              <span class="tonic">{{ noteLabel(item.tonicNote) }}</span>
+              <span>{{ item.modeName }}</span>
+            </strong>
           </div>
           <code class="formula">{{ degrees(item.intervals) }}</code>
-          <span v-if="item.global" class="badge">общий</span>
-          <button class="link-btn" @click="openScale(item)">Аппликатуры</button>
+          <div class="row-actions">
+            <button
+              type="button"
+              class="icon-action"
+              title="Аппликатуры"
+              aria-label="Аппликатуры"
+              @click="openScale(item)"
+            >
+              <AppIcon name="shapes" />
+            </button>
+            <button
+              type="button"
+              class="icon-action"
+              title="Аккорды в ладу"
+              aria-label="Аккорды в ладу"
+              @click="openChords(item)"
+            >
+              <AppIcon name="chord" />
+            </button>
+          </div>
         </div>
       </div>
     </template>
@@ -74,9 +94,11 @@ import { useRouter } from 'vue-router'
 import BackButton from '@/components/BackButton.vue'
 import ChordPicker from '@/components/ChordPicker.vue'
 import TonicPicker from '@/components/TonicPicker.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import { chordsStore } from '@/stores/chords'
 import { matchingStore } from '@/stores/matching'
 import type { ChordTonicRequest, ModeMatch } from '@/api'
+import { noteLabel } from '@/api'
 
 interface Row {
   chordId: string | null
@@ -98,6 +120,10 @@ function degrees(intervals: number[]): string {
   const result = [0]
   intervals.forEach((step, index) => result.push(result[index] + step))
   return result.join(' · ')
+}
+
+function entityClass(global: boolean): string {
+  return global ? 'entity-global' : 'entity-own'
 }
 
 function addRow() {
@@ -127,6 +153,16 @@ function openScale(item: ModeMatch) {
       modeId: item.modeId,
       tonic: String(60 + item.tonicPitchClass),
       span: '5'
+    }
+  })
+}
+
+function openChords(item: ModeMatch) {
+  router.push({
+    path: '/modes/chords',
+    query: {
+      modeId: item.modeId,
+      tonic: String(60 + item.tonicPitchClass)
     }
   })
 }
@@ -290,14 +326,21 @@ h1 {
 .match-main {
   display: flex;
   align-items: baseline;
-  gap: 0.45rem;
   flex-wrap: wrap;
   margin-right: auto;
+  min-width: 0;
+}
+
+.match-main strong {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  overflow-wrap: anywhere;
 }
 
 .tonic {
-  color: var(--color-muted);
-  font-size: 0.88rem;
+  font-size: 1.05em;
 }
 
 .formula {
@@ -305,23 +348,10 @@ h1 {
   font-size: 0.85rem;
 }
 
-.badge {
-  font-size: 0.72rem;
-  color: var(--color-muted);
-}
-
-.link-btn {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-bg);
-  color: var(--color-primary);
-  cursor: pointer;
-  min-height: 36px;
-}
-
-.link-btn:hover {
-  background: var(--color-primary-soft);
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .error {

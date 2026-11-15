@@ -40,12 +40,12 @@
     >{{ fretNumber }}</text>
 
     <g v-for="(position, index) in positions" :key="`position-${index}`">
-      <title>{{ position.note }} · струна {{ position.string + 1 }} · лад {{ position.fret }}</title>
+      <title>{{ noteLabel(position.note) }} · струна {{ position.string + 1 }} · лад {{ position.fret }}</title>
       <circle
         :cx="positionX(position.fret)"
         :cy="stringY(position.string)"
         :r="position.fret === 0 ? 9 : 11"
-        :fill="position.degree === 0 ? 'var(--color-gold)' : 'var(--color-primary)'"
+        :fill="position.degree === 0 ? 'var(--color-tonic)' : 'var(--color-primary)'"
         :stroke="position.degree === 0 ? 'var(--color-primary)' : 'none'"
         stroke-width="1"
       />
@@ -56,7 +56,7 @@
         font-size="9"
         font-weight="600"
         fill="var(--color-on-primary)"
-      >{{ shortNote(position.note) }}</text>
+      >{{ noteLabel(position.note) }}</text>
     </g>
 
     <g v-if="showMutes" fill="var(--color-muted)">
@@ -76,6 +76,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FretboardPosition } from '@/api'
+import { noteLabel } from '@/api'
 
 const props = withDefaults(defineProps<{
   openNotes: number[]
@@ -159,10 +160,6 @@ function positionX(fret: number): number {
     return openX.value
   }
   return fretX(fret) + fretWidth / 2
-}
-
-function shortNote(note: string): string {
-  return note.replace(/-?\d+$/, '')
 }
 </script>
 

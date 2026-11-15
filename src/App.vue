@@ -4,37 +4,65 @@
       <div class="nav-brand">
         <router-link to="/">Strings</router-link>
       </div>
-      <div class="nav-links">
+
+      <button
+        v-if="auth.isAuthenticated"
+        class="burger-btn"
+        type="button"
+        :title="mobileOpen ? 'Закрыть меню' : 'Открыть меню'"
+        :aria-label="mobileOpen ? 'Закрыть меню' : 'Открыть меню'"
+        :aria-expanded="mobileOpen"
+        aria-controls="main-nav"
+        @click="mobileOpen = !mobileOpen"
+      >
+        <AppIcon :name="mobileOpen ? 'close' : 'menu'" />
+      </button>
+
+      <div
+        id="main-nav"
+        class="nav-links"
+        :class="{
+          'nav-menu': auth.isAuthenticated,
+          'is-collapsed': auth.isAuthenticated && !mobileOpen
+        }"
+        @click="mobileOpen = false"
+      >
         <template v-if="auth.isAuthenticated">
-          <router-link to="/playground">Аппликатуры</router-link>
-          <router-link to="/modes/chords">Аккорды в ладу</router-link>
-          <router-link to="/match">Подбор лада</router-link>
-          <router-link to="/catalog">Справочники</router-link>
+          <router-link to="/playground">
+            <AppIcon name="shapes" />
+            <span>Аппликатуры</span>
+          </router-link>
+          <router-link to="/modes/chords">
+            <AppIcon name="chord" />
+            <span>Аккорды в ладу</span>
+          </router-link>
+          <router-link to="/match">
+            <AppIcon name="search" />
+            <span>Подбор лада</span>
+          </router-link>
+          <router-link to="/catalog">
+            <AppIcon name="catalog" />
+            <span>Справочники</span>
+          </router-link>
           <span v-if="auth.isAdmin" class="admin-badge" title="Администратор">admin</span>
           <router-link v-if="auth.userName" to="/catalog" class="user-name full" :title="auth.userName">{{ auth.userName }}</router-link>
           <router-link v-if="auth.userName" to="/catalog" class="user-name short" :title="auth.userName">{{ auth.initials }}</router-link>
           <button class="icon-btn" title="Выйти" aria-label="Выйти" @click="handleLogout">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
+            <AppIcon name="logout" />
           </button>
         </template>
         <template v-else>
           <button class="icon-btn" title="Войти" aria-label="Войти" @click="handleLogin">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-              <polyline points="10 17 15 12 10 7"/>
-              <line x1="15" y1="12" x2="3" y2="12"/>
-            </svg>
+            <AppIcon name="login" />
           </button>
         </template>
       </div>
     </nav>
+
     <main class="content">
       <router-view />
     </main>
+
     <footer class="footer">
       <div class="footer-links">
         <router-link to="/faq">FAQ</router-link>
@@ -45,22 +73,29 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { inject, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { authStore } from '@/stores/auth'
 import { logout } from '@/logout'
 import { getBackendVersion } from '@/api'
+import AppIcon from '@/components/AppIcon.vue'
 import { SsoService } from '@bogdanovmn/ssofw'
 
+const route = useRoute()
 const router = useRouter()
 const auth = authStore()
 const ssoService = inject<SsoService>('ssoService')!
 const backendVersion = ref<string | null>(null)
 const frontendVersion = import.meta.env.FRONTEND_VERSION
+const mobileOpen = ref(false)
 
 onMounted(() => {
   auth.update()
   loadBackendVersion()
+})
+
+watch(() => route.fullPath, () => {
+  mobileOpen.value = false
 })
 
 async function loadBackendVersion() {
@@ -91,6 +126,7 @@ async function handleLogout() {
 }
 
 .navbar {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -117,6 +153,9 @@ async function handleLogout() {
 }
 
 .nav-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   color: var(--color-nav-link);
   text-decoration: none;
   font-size: 0.95rem;
@@ -128,14 +167,32 @@ async function handleLogout() {
   color: var(--color-on-primary);
 }
 
+.burger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--color-nav-hover);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-on-primary);
+  cursor: pointer;
+}
+
+.burger-btn:hover {
+  background: var(--color-nav-hover);
+}
+
 .admin-badge {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0.1rem 0.45rem;
   border-radius: 4px;
-  background: var(--color-gold);
-  color: #3a2f22;
+  background: var(--color-badge);
+  color: var(--color-nav);
 }
 
 .user-name {
@@ -234,6 +291,52 @@ async function handleLogout() {
 
   .user-name.short {
     display: inline;
+  }
+}
+
+@media (max-width: 767px) {
+  .burger-btn {
+    display: inline-flex;
+  }
+
+  .nav-links.nav-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2rem;
+    padding: 0.6rem 1rem 1rem;
+    border-top: 1px solid var(--color-nav-hover);
+    background: var(--color-nav);
+    box-shadow: 0 12px 28px var(--color-overlay);
+  }
+
+  .nav-links.nav-menu:not(.is-collapsed) {
+    display: flex;
+  }
+
+  .nav-links.nav-menu a {
+    padding: 0.65rem 0.5rem;
+    border-radius: 6px;
+  }
+
+  .nav-links.nav-menu a:hover,
+  .nav-links.nav-menu a.router-link-active {
+    background: var(--color-nav-hover);
+  }
+
+  .nav-links.nav-menu .admin-badge,
+  .nav-links.nav-menu .user-name {
+    align-self: flex-start;
+  }
+
+  .nav-links.nav-menu .icon-btn {
+    align-self: flex-start;
+    margin-top: 0.35rem;
   }
 }
 

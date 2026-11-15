@@ -8,24 +8,27 @@
       Выберите инструмент, материал и окно ладов. Открытые струны разрешены и не расширяют окно.
     </p>
 
+    <div class="tabs material-tabs" role="tablist" aria-label="Материал">
+      <button
+        v-for="option in kinds"
+        :key="option.value"
+        type="button"
+        class="tab"
+        role="tab"
+        :aria-selected="kind === option.value"
+        :class="{ active: kind === option.value }"
+        @click="kind = option.value"
+      >
+        <AppIcon :name="option.icon" />
+        <span>{{ option.label }}</span>
+      </button>
+    </div>
+
     <div class="controls">
       <label class="control">
         <span>Инструмент</span>
         <InstrumentPicker v-model="instrumentId" :instruments="instrumentsStoreInstance.instruments" />
       </label>
-
-      <div class="control">
-        <span>Материал</span>
-        <div class="kind-tabs">
-          <button
-            v-for="option in kinds"
-            :key="option.value"
-            type="button"
-            :class="{ active: kind === option.value }"
-            @click="kind = option.value"
-          >{{ option.label }}</button>
-        </div>
-      </div>
 
       <label v-if="kind === 'scale'" class="control">
         <span>Лад</span>
@@ -38,7 +41,7 @@
 
       <div class="control">
         <span>Тоника</span>
-        <TonicPicker v-model="tonic" :min-octave="1" :max-octave="7" />
+        <TonicPicker v-model="tonic" />
       </div>
 
       <label class="control small">
@@ -48,14 +51,32 @@
         </select>
       </label>
 
+      <div class="control">
+        <span>Представление</span>
+        <div class="segmented" role="group" aria-label="Представление аппликатуры">
+          <button
+            type="button"
+            :class="{ active: view === 'fretboard' }"
+            @click="view = 'fretboard'"
+          >
+            <AppIcon name="shapes" />
+            <span>Гриф</span>
+          </button>
+          <button
+            type="button"
+            :class="{ active: view === 'tablature' }"
+            @click="view = 'tablature'"
+          >
+            <AppIcon name="tablature" />
+            <span>Табулатура</span>
+          </button>
+        </div>
+      </div>
+
       <label v-if="kind === 'chord'" class="control checkbox">
         <input v-model="allowMuted" type="checkbox" />
         <span>разрешить приглушённые струны</span>
       </label>
-
-      <button class="build-btn" :disabled="!canBuild || fretboard.isLoading" @click="loadAll">
-        {{ fretboard.isLoading ? 'Строим…' : 'Построить' }}
-      </button>
     </div>
 
     <p v-if="fretboard.error" class="error">{{ fretboard.error }}</p>
@@ -77,26 +98,27 @@
     <template v-else-if="fretboard.fingerings">
       <div class="results-head">
         <h2>{{ materialTitle }}</h2>
-        <span class="count">вариантов: {{ fretboard.fingerings.items.length }}</span>
+        <span class="count">вариантов: {{ visibleFingerings.length }}</span>
       </div>
 
       <p v-if="fretboard.fingerings.truncated" class="notice">
         Показаны не все варианты: сработал лимит. Уменьшите окно ладов или уточните запрос.
       </p>
 
-      <div v-if="fretboard.fingerings.items.length === 0" class="empty">
+      <div v-if="visibleFingerings.length === 0" class="empty">
         Подходящих аппликатур не найдено. Попробуйте увеличить окно ладов или выбрать другой материал.
       </div>
 
       <div v-else class="shape-grid">
         <ShapeCard
-          v-for="(fingering, index) in fretboard.fingerings.items"
+          v-for="(fingering, index) in visibleFingerings"
           :key="index"
           :fingering="fingering"
           :open-notes="openNotes"
           :frets="frets"
           :span="span"
           :show-mutes="kind === 'chord' && allowMuted"
+          :view="view"
         />
       </div>
     </template>
@@ -112,19 +134,25 @@ import ModePicker from '@/components/ModePicker.vue'
 import ChordPicker from '@/components/ChordPicker.vue'
 import TonicPicker from '@/components/TonicPicker.vue'
 import ShapeCard from '@/components/ShapeCard.vue'
+import AppIcon from '@/components/AppIcon.vue'
+import type { IconName } from '@/components/icons'
 import { instrumentsStore } from '@/stores/instruments'
 import { modesStore } from '@/stores/modes'
 import { chordsStore } from '@/stores/chords'
 import { fretboardStore } from '@/stores/fretboard'
 import { noteName } from '@/api'
+import type { Fingering } from '@/api'
 
 type Kind = 'scale' | 'arpeggio' | 'chord'
+type ShapeView = 'fretboard' | 'tablature'
 
-const kinds: { value: Kind; label: string }[] = [
-  { value: 'scale', label: 'Гамма' },
-  { value: 'arpeggio', label: 'Арпеджио' },
-  { value: 'chord', label: 'Аккорд' }
+const kinds: { value: Kind; label: string; icon: IconName }[] = [
+  { value: 'scale', label: 'Гамма', icon: 'mode' },
+  { value: 'arpeggio', label: 'Арпеджио', icon: 'arpeggio' },
+  { value: 'chord', label: 'Аккорд', icon: 'chord' }
 ]
+
+const SHAPE_VIEW_KEY = 'strings.shapes.view'
 
 const route = useRoute()
 const instrumentsStoreInstance = instrumentsStore()
@@ -139,6 +167,7 @@ const chordId = ref<string | null>(queryString('chordId'))
 const tonic = ref<number>(queryNumber('tonic') ?? 60)
 const span = ref<number>(queryNumber('span') ?? (kind.value === 'chord' ? 4 : 5))
 const allowMuted = ref<boolean>(route.query.allowMuted !== 'false')
+const view = ref<ShapeView>(readShapeView())
 
 const ready = ref(false)
 const spanOptions = Array.from({ length: 11 }, (_, index) => index + 2)
@@ -155,6 +184,18 @@ const canBuild = computed(() => {
   return Boolean(chordId.value)
 })
 
+// After the 12th fret the fretboard repeats structurally, so shapes whose leftmost note is above it are not shown.
+const visibleFingerings = computed(() =>
+  (fretboard.fingerings?.items ?? []).filter(fingering => lowestFret(fingering) <= 12)
+)
+
+function lowestFret(fingering: Fingering): number {
+  return fingering.positions.reduce(
+    (lowest, position) => Math.min(lowest, position.fret),
+    Number.POSITIVE_INFINITY
+  )
+}
+
 const materialTitle = computed(() => {
   if (kind.value === 'scale') {
     const mode = modesStoreInstance.modes.find(item => item.id === modeId.value)
@@ -164,6 +205,14 @@ const materialTitle = computed(() => {
   const suffix = kind.value === 'arpeggio' ? 'арпеджио' : 'аккорд'
   return `${chord?.name ?? 'Аккорд'} · ${suffix} · ${noteName(tonic.value)}`
 })
+
+function readShapeView(): ShapeView {
+  try {
+    return window.localStorage.getItem(SHAPE_VIEW_KEY) === 'tablature' ? 'tablature' : 'fretboard'
+  } catch {
+    return 'fretboard'
+  }
+}
 
 function queryString(key: string): string | null {
   const value = route.query[key]
@@ -236,6 +285,14 @@ watch([kind, instrumentId, modeId, chordId, tonic, span, allowMuted], () => {
     void loadAll()
   }
 }, { flush: 'sync' })
+
+watch(view, (value) => {
+  try {
+    window.localStorage.setItem(SHAPE_VIEW_KEY, value)
+  } catch {
+    // Storage may be unavailable; the in-memory setting still works.
+  }
+})
 </script>
 
 <style scoped>
@@ -254,6 +311,10 @@ h1 {
   color: var(--color-muted);
   margin-bottom: 1rem;
   font-size: 0.92rem;
+}
+
+.material-tabs {
+  margin-bottom: 0.75rem;
 }
 
 .controls {
@@ -299,43 +360,34 @@ h1 {
   color: var(--color-text);
 }
 
-.kind-tabs {
+.segmented {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
 }
 
-.kind-tabs button {
-  padding: 0.45rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-bg);
+.segmented button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
   min-height: 42px;
 }
 
-.kind-tabs button.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
+.segmented button + button {
+  border-left: 1px solid var(--color-border);
 }
 
-.build-btn {
-  align-self: end;
-  padding: 0.55rem 1.2rem;
-  border: 1px solid var(--color-primary);
-  border-radius: 4px;
+.segmented button.active {
   background: var(--color-primary);
   color: var(--color-on-primary);
-  cursor: pointer;
-  min-height: 42px;
-  font-size: 1rem;
-}
-
-.build-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 
 .results-head {
