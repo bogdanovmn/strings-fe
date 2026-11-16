@@ -128,7 +128,6 @@ export interface ArpeggioQuery extends FretboardQuery {
 
 export interface ChordShapesQuery extends FretboardQuery {
   chordId: string
-  allowMuted: boolean
 }
 
 export const MIN_FRETS = 12

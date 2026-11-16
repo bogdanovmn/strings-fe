@@ -12,8 +12,6 @@
       :open-notes="openNotes"
       :frets="frets"
       :positions="fingering.positions"
-      :base-fret="fingering.baseFret"
-      :span="span"
       :show-mutes="showMutes"
     />
 
@@ -37,14 +35,12 @@ const props = withDefaults(defineProps<{
   openNotes: number[]
   frets: number
   title?: string
-  span?: number
-  showMutes?: boolean
   view?: 'fretboard' | 'tablature'
+  showMutes?: boolean
 }>(), {
   title: '',
-  span: 5,
-  showMutes: false,
-  view: 'fretboard'
+  view: 'fretboard',
+  showMutes: false
 })
 
 const mutedCount = computed(() =>

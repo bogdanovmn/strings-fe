@@ -14,14 +14,14 @@
       :y1="top"
       :x2="fretX(fretLine)"
       :y2="bottomY"
-      :stroke="fretLine === 0 ? 'var(--color-primary)' : 'var(--color-border)'"
-      :stroke-width="fretLine === 0 ? 3 : 1"
+      :stroke="fretLine === windowStart && windowStart === 1 ? 'var(--color-primary)' : 'var(--color-border)'"
+      :stroke-width="fretLine === windowStart && windowStart === 1 ? 3 : 1"
     />
 
     <line
       v-for="(_, stringIndex) in openNotes"
       :key="`string-${stringIndex}`"
-      :x1="left"
+      :x1="stringLineStart"
       :y1="stringY(stringIndex)"
       :x2="right"
       :y2="stringY(stringIndex)"
@@ -32,7 +32,7 @@
     <text
       v-for="fretNumber in fretNumbers"
       :key="`number-${fretNumber}`"
-      :x="fretX(fretNumber) - fretWidth / 2"
+      :x="fretX(fretNumber) + fretWidth / 2"
       :y="height - 7"
       text-anchor="middle"
       font-size="10"
@@ -59,7 +59,7 @@
       >{{ noteLabel(position.note) }}</text>
     </g>
 
-    <g v-if="showMutes" fill="var(--color-muted)">
+    <g v-if="showMutes && mutedStrings.length > 0" fill="var(--color-muted)">
       <text
         v-for="stringIndex in mutedStrings"
         :key="`mute-${stringIndex}`"
@@ -82,45 +82,50 @@ const props = withDefaults(defineProps<{
   openNotes: number[]
   frets: number
   positions: FretboardPosition[]
-  baseFret?: number
-  span?: number
   showMutes?: boolean
 }>(), {
-  baseFret: 1,
-  span: 5,
   showMutes: false
 })
 
-const left = 46
-const rightPad = 18
 const top = 22
 const bottom = 30
 const fretWidth = 46
 const stringGap = 26
+const rightPad = 18
 
-const windowStart = computed(() => {
-  const base = Math.max(1, props.baseFret)
-  const highestFret = props.positions.reduce((max, position) => Math.max(max, position.fret), 0)
-  if (base <= 1 && highestFret <= 12) {
-    return 0
-  }
-  return Math.max(0, Math.min(base - 1, props.frets))
+const mutedStrings = computed(() => {
+  const sounded = new Set(props.positions.map(position => position.string))
+  return props.openNotes.map((_, index) => index).filter(index => !sounded.has(index))
 })
 
-const windowEnd = computed(() => {
-  if (windowStart.value === 0) {
-    const highestFret = props.positions.reduce((max, position) => Math.max(max, position.fret), 0)
-    return Math.min(props.frets, Math.max(12, highestFret))
-  }
-  return Math.min(props.frets, windowStart.value + Math.max(2, props.span))
-})
+const hasOpenColumn = computed(() =>
+  props.positions.some(position => position.fret === 0)
+    || (props.showMutes && mutedStrings.value.length > 0)
+)
+
+const frettedFrets = computed(() =>
+  props.positions.filter(position => position.fret > 0).map(position => position.fret)
+)
+
+// Only the frets that actually carry notes are shown; open strings and mutes live in the left column.
+const windowStart = computed(() =>
+  frettedFrets.value.length > 0 ? Math.min(...frettedFrets.value) : 1
+)
+const windowEnd = computed(() =>
+  frettedFrets.value.length > 0
+    ? Math.max(...frettedFrets.value)
+    : Math.min(props.frets || 1, 4)
+)
+
+const left = computed(() => (hasOpenColumn.value ? 46 : 26))
+const openX = computed(() => left.value - 20)
+const stringLineStart = computed(() => (hasOpenColumn.value ? openX.value : left.value))
 
 const columns = computed(() => windowEnd.value - windowStart.value + 1)
-const width = computed(() => left + columns.value * fretWidth + rightPad)
+const width = computed(() => left.value + columns.value * fretWidth + rightPad)
 const height = computed(() => top + Math.max(0, props.openNotes.length - 1) * stringGap + bottom)
 const bottomY = computed(() => top + Math.max(0, props.openNotes.length - 1) * stringGap)
-const right = computed(() => left + columns.value * fretWidth)
-const openX = computed(() => left - 26)
+const right = computed(() => left.value + columns.value * fretWidth)
 
 const fretLines = computed(() => {
   const result: number[] = []
@@ -130,18 +135,8 @@ const fretLines = computed(() => {
   return result
 })
 
-const fretNumbers = computed(() => {
-  const result: number[] = []
-  for (let fret = Math.max(1, windowStart.value); fret <= windowEnd.value; fret++) {
-    result.push(fret)
-  }
-  return result
-})
-
-const mutedStrings = computed(() => {
-  const sounded = new Set(props.positions.map(position => position.string))
-  return props.openNotes.map((_, index) => index).filter(index => !sounded.has(index))
-})
+// A shape needs only one fret label: the first (leftmost) fret of the shown window.
+const fretNumbers = computed(() => [windowStart.value])
 
 const ariaLabel = computed(() =>
   `Гриф: ${props.openNotes.length} струн, лады ${windowStart.value}–${windowEnd.value}`
@@ -152,7 +147,7 @@ function stringY(stringIndex: number): number {
 }
 
 function fretX(fret: number): number {
-  return left + (fret - windowStart.value) * fretWidth
+  return left.value + (fret - windowStart.value) * fretWidth
 }
 
 function positionX(fret: number): number {

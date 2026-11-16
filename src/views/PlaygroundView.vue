@@ -72,11 +72,6 @@
           </button>
         </div>
       </div>
-
-      <label v-if="kind === 'chord'" class="control checkbox">
-        <input v-model="allowMuted" type="checkbox" />
-        <span>разрешить приглушённые струны</span>
-      </label>
     </div>
 
     <p v-if="fretboard.error" class="error">{{ fretboard.error }}</p>
@@ -97,8 +92,9 @@
 
     <template v-else-if="fretboard.fingerings">
       <div class="results-head">
-        <h2>{{ materialTitle }}</h2>
-        <span class="count">вариантов: {{ visibleFingerings.length }}</span>
+        <span class="count">
+          вариантов: {{ filteredFingerings.length }}<template v-if="hasActiveFilters"> из {{ visibleFingerings.length }}</template>
+        </span>
       </div>
 
       <p v-if="fretboard.fingerings.truncated" class="notice">
@@ -109,18 +105,80 @@
         Подходящих аппликатур не найдено. Попробуйте увеличить окно ладов или выбрать другой материал.
       </div>
 
-      <div v-else class="shape-grid">
-        <ShapeCard
-          v-for="(fingering, index) in visibleFingerings"
-          :key="index"
-          :fingering="fingering"
-          :open-notes="openNotes"
-          :frets="frets"
-          :span="span"
-          :show-mutes="kind === 'chord' && allowMuted"
-          :view="view"
-        />
-      </div>
+      <template v-else>
+        <div v-if="showFilters" class="filters" role="group" aria-label="Фильтры аппликатур">
+          <div v-if="positionOptions.length > 1" class="filter-group">
+            <span class="filter-label">Позиция</span>
+            <div class="filter-chips">
+              <button
+                v-for="option in positionOptions"
+                :key="`position-${option.value}`"
+                type="button"
+                class="filter-chip"
+                :class="{ active: positionFilter.includes(option.value) }"
+                :aria-pressed="positionFilter.includes(option.value)"
+                @click="togglePosition(option.value)"
+              >
+                {{ option.label }}<span class="chip-count">{{ option.count }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="mutedOptions.length > 0" class="filter-group">
+            <span class="filter-label">Приглушённые</span>
+            <div class="filter-chips">
+              <button
+                v-for="option in mutedOptions"
+                :key="`muted-${option.value}`"
+                type="button"
+                class="filter-chip"
+                :class="{ active: mutedFilter.includes(option.value) }"
+                :aria-pressed="mutedFilter.includes(option.value)"
+                @click="toggleMuted(option.value)"
+              >
+                {{ option.label }}<span class="chip-count">{{ option.count }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="openOptions.length > 0" class="filter-group">
+            <span class="filter-label">Открытые</span>
+            <div class="filter-chips">
+              <button
+                v-for="option in openOptions"
+                :key="`open-${option.value}`"
+                type="button"
+                class="filter-chip"
+                :class="{ active: openFilter.includes(option.value) }"
+                :aria-pressed="openFilter.includes(option.value)"
+                @click="toggleOpen(option.value)"
+              >
+                {{ option.label }}<span class="chip-count">{{ option.count }}</span>
+              </button>
+            </div>
+          </div>
+
+          <button v-if="hasActiveFilters" type="button" class="filter-reset" @click="resetFilters">
+            Сбросить
+          </button>
+        </div>
+
+        <div v-if="filteredFingerings.length === 0" class="empty">
+          Под выбранные фильтры ничего не подошло.
+        </div>
+
+        <div v-else class="shape-grid">
+          <ShapeCard
+            v-for="(fingering, index) in filteredFingerings"
+            :key="index"
+            :fingering="fingering"
+            :open-notes="openNotes"
+            :frets="frets"
+            :view="view"
+            :show-mutes="kind === 'chord'"
+          />
+        </div>
+      </template>
     </template>
   </div>
 </template>
@@ -140,11 +198,31 @@ import { instrumentsStore } from '@/stores/instruments'
 import { modesStore } from '@/stores/modes'
 import { chordsStore } from '@/stores/chords'
 import { fretboardStore } from '@/stores/fretboard'
-import { noteName } from '@/api'
 import type { Fingering } from '@/api'
 
 type Kind = 'scale' | 'arpeggio' | 'chord'
 type ShapeView = 'fretboard' | 'tablature'
+
+interface SavedForm {
+  kind?: Kind
+  instrumentId?: string | null
+  modeId?: string | null
+  chordId?: string | null
+  tonic?: number
+  span?: number
+}
+
+interface FilterOption {
+  value: number
+  label: string
+  count: number
+}
+
+interface PresenceOption {
+  value: boolean
+  label: string
+  count: number
+}
 
 const kinds: { value: Kind; label: string; icon: IconName }[] = [
   { value: 'scale', label: 'Гамма', icon: 'mode' },
@@ -152,6 +230,7 @@ const kinds: { value: Kind; label: string; icon: IconName }[] = [
   { value: 'chord', label: 'Аккорд', icon: 'chord' }
 ]
 
+const FORM_KEY = 'strings.playground.form'
 const SHAPE_VIEW_KEY = 'strings.shapes.view'
 
 const route = useRoute()
@@ -160,17 +239,21 @@ const modesStoreInstance = modesStore()
 const chordsStoreInstance = chordsStore()
 const fretboard = fretboardStore()
 
-const kind = ref<Kind>(parseKind(route.query.kind))
-const instrumentId = ref<string | null>(queryString('instrumentId'))
-const modeId = ref<string | null>(queryString('modeId'))
-const chordId = ref<string | null>(queryString('chordId'))
-const tonic = ref<number>(queryNumber('tonic') ?? 60)
-const span = ref<number>(queryNumber('span') ?? (kind.value === 'chord' ? 4 : 5))
-const allowMuted = ref<boolean>(route.query.allowMuted !== 'false')
+const savedForm = readSavedForm()
+const kind = ref<Kind>(parseKind(route.query.kind ?? savedForm.kind))
+const instrumentId = ref<string | null>(queryString('instrumentId') ?? savedString(savedForm.instrumentId))
+const modeId = ref<string | null>(queryString('modeId') ?? savedString(savedForm.modeId))
+const chordId = ref<string | null>(queryString('chordId') ?? savedString(savedForm.chordId))
+const tonic = ref<number>(queryNumber('tonic') ?? savedNumber(savedForm.tonic) ?? 60)
+const span = ref<number>(queryNumber('span') ?? savedNumber(savedForm.span) ?? (kind.value === 'chord' ? 4 : 5))
 const view = ref<ShapeView>(readShapeView())
 
 const ready = ref(false)
 const spanOptions = Array.from({ length: 11 }, (_, index) => index + 2)
+
+const positionFilter = ref<number[]>([])
+const mutedFilter = ref<boolean[]>([])
+const openFilter = ref<boolean[]>([])
 
 const selectedInstrument = computed(() =>
   instrumentsStoreInstance.instruments.find(item => item.id === instrumentId.value) ?? null
@@ -189,6 +272,52 @@ const visibleFingerings = computed(() =>
   (fretboard.fingerings?.items ?? []).filter(fingering => lowestFret(fingering) <= 12)
 )
 
+const positionOptions = computed<FilterOption[]>(() => {
+  const counts = new Map<number, number>()
+  for (const fingering of visibleFingerings.value) {
+    const position = positionKey(fingering)
+    counts.set(position, (counts.get(position) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort(([first], [second]) => first - second)
+    .map(([value, count]) => ({
+      value,
+      label: value === 0 ? 'Открытая' : String(value),
+      count
+    }))
+})
+
+const mutedOptions = computed(() =>
+  kind.value === 'chord' ? presenceOptions(visibleFingerings.value, hasMutedStrings) : []
+)
+const openOptions = computed(() =>
+  presenceOptions(visibleFingerings.value, hasOpenStrings)
+)
+
+const showFilters = computed(() =>
+  kind.value === 'chord'
+    && (positionOptions.value.length > 1 || mutedOptions.value.length > 0 || openOptions.value.length > 0)
+)
+
+const hasActiveFilters = computed(() =>
+  positionFilter.value.length > 0 || mutedFilter.value.length > 0 || openFilter.value.length > 0
+)
+
+const filteredFingerings = computed(() =>
+  visibleFingerings.value.filter(fingering => {
+    if (positionFilter.value.length > 0 && !positionFilter.value.includes(positionKey(fingering))) {
+      return false
+    }
+    if (mutedFilter.value.length > 0 && !mutedFilter.value.includes(hasMutedStrings(fingering))) {
+      return false
+    }
+    if (openFilter.value.length > 0 && !openFilter.value.includes(hasOpenStrings(fingering))) {
+      return false
+    }
+    return true
+  })
+)
+
 function lowestFret(fingering: Fingering): number {
   return fingering.positions.reduce(
     (lowest, position) => Math.min(lowest, position.fret),
@@ -196,15 +325,91 @@ function lowestFret(fingering: Fingering): number {
   )
 }
 
-const materialTitle = computed(() => {
-  if (kind.value === 'scale') {
-    const mode = modesStoreInstance.modes.find(item => item.id === modeId.value)
-    return `${mode?.name ?? 'Лад'} · ${noteName(tonic.value)}`
+function positionKey(fingering: Fingering): number {
+  return fingering.baseFret <= 1 && hasOpenStrings(fingering) ? 0 : fingering.baseFret
+}
+
+function hasOpenStrings(fingering: Fingering): boolean {
+  return fingering.positions.some(position => position.fret === 0)
+}
+
+function hasMutedStrings(fingering: Fingering): boolean {
+  return fingering.positions.length < openNotes.value.length
+}
+
+function presenceOptions(
+  fingerings: Fingering[],
+  predicate: (fingering: Fingering) => boolean
+): PresenceOption[] {
+  const yes = fingerings.filter(predicate).length
+  const no = fingerings.length - yes
+  if (yes === 0 || no === 0) return []
+  return [
+    { value: true, label: 'Есть', count: yes },
+    { value: false, label: 'Нет', count: no }
+  ]
+}
+
+function toggleValue<T>(values: T[], value: T): void {
+  const index = values.indexOf(value)
+  if (index >= 0) {
+    values.splice(index, 1)
+  } else {
+    values.push(value)
   }
-  const chord = chordsStoreInstance.chords.find(item => item.id === chordId.value)
-  const suffix = kind.value === 'arpeggio' ? 'арпеджио' : 'аккорд'
-  return `${chord?.name ?? 'Аккорд'} · ${suffix} · ${noteName(tonic.value)}`
-})
+}
+
+function togglePosition(value: number): void {
+  toggleValue(positionFilter.value, value)
+}
+
+function toggleMuted(value: boolean): void {
+  toggleValue(mutedFilter.value, value)
+}
+
+function toggleOpen(value: boolean): void {
+  toggleValue(openFilter.value, value)
+}
+
+function resetFilters(): void {
+  positionFilter.value = []
+  mutedFilter.value = []
+  openFilter.value = []
+}
+
+function readSavedForm(): SavedForm {
+  try {
+    const raw = window.localStorage.getItem(FORM_KEY)
+    if (!raw) return {}
+    const parsed: unknown = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed as SavedForm : {}
+  } catch {
+    return {}
+  }
+}
+
+function savedString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function savedNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function saveForm(): void {
+  try {
+    window.localStorage.setItem(FORM_KEY, JSON.stringify({
+      kind: kind.value,
+      instrumentId: instrumentId.value,
+      modeId: modeId.value,
+      chordId: chordId.value,
+      tonic: tonic.value,
+      span: span.value
+    }))
+  } catch {
+    // Storage may be unavailable; the in-memory state still works.
+  }
+}
 
 function readShapeView(): ShapeView {
   try {
@@ -231,6 +436,7 @@ function parseKind(value: unknown): Kind {
 }
 
 async function loadAll(): Promise<void> {
+  resetFilters()
   if (!canBuild.value || !instrumentId.value) {
     fretboard.reset()
     return
@@ -255,8 +461,7 @@ async function loadAll(): Promise<void> {
       instrumentId: instrumentId.value,
       chordId: chordId.value,
       tonic: tonic.value,
-      span: span.value,
-      allowMuted: allowMuted.value
+      span: span.value
     })
   }
 }
@@ -267,20 +472,22 @@ onMounted(async () => {
     modesStoreInstance.load(),
     chordsStoreInstance.load()
   ])
-  if (!instrumentId.value) {
+  if (!instrumentsStoreInstance.instruments.some(item => item.id === instrumentId.value)) {
     instrumentId.value = instrumentsStoreInstance.instruments[0]?.id ?? null
   }
-  if (!modeId.value) {
+  if (!modesStoreInstance.modes.some(item => item.id === modeId.value)) {
     modeId.value = modesStoreInstance.modes[0]?.id ?? null
   }
-  if (!chordId.value) {
+  if (!chordsStoreInstance.chords.some(item => item.id === chordId.value)) {
     chordId.value = chordsStoreInstance.chords[0]?.id ?? null
   }
+  saveForm()
   ready.value = true
   await loadAll()
 })
 
-watch([kind, instrumentId, modeId, chordId, tonic, span, allowMuted], () => {
+watch([kind, instrumentId, modeId, chordId, tonic, span], () => {
+  saveForm()
   if (ready.value) {
     void loadAll()
   }
@@ -349,17 +556,6 @@ h1 {
   min-height: 42px;
 }
 
-.control.checkbox {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.control.checkbox span {
-  font-size: 0.88rem;
-  color: var(--color-text);
-}
-
 .segmented {
   display: flex;
   overflow: hidden;
@@ -399,13 +595,87 @@ h1 {
   margin-bottom: 0.6rem;
 }
 
-.results-head h2 {
-  font-size: 1.15rem;
-}
-
 .count {
   color: var(--color-muted);
   font-size: 0.88rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem 1.1rem;
+  margin-bottom: 0.9rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.filter-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.filter-chip:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-alt);
+}
+
+.filter-chip.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.chip-count {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.filter-reset {
+  align-self: flex-end;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.filter-reset:hover {
+  background: var(--color-primary-soft);
 }
 
 .notice {
