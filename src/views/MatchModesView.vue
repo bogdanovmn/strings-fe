@@ -341,6 +341,8 @@ h1 {
 
 .tonic {
   font-size: 1.05em;
+  font-weight: 100;
+  color: var(--color-overlay)
 }
 
 .formula {

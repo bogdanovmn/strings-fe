@@ -1,76 +1,91 @@
 <template>
-  <svg
-    class="fretboard-svg"
-    :viewBox="`0 0 ${width} ${height}`"
-    role="img"
-    :aria-label="ariaLabel"
-  >
-    <rect x="0" y="0" :width="width" :height="height" rx="8" fill="var(--color-surface)" />
+  <div class="fretboard-scroll">
+    <svg
+      class="fretboard-svg"
+      :width="width"
+      :height="height"
+      :viewBox="`0 0 ${width} ${height}`"
+      role="img"
+      :aria-label="ariaLabel"
+    >
+      <rect x="0" y="0" :width="width" :height="height" rx="8" fill="var(--color-surface)" />
 
-    <line
-      v-for="fretLine in fretLines"
-      :key="`fret-${fretLine}`"
-      :x1="fretX(fretLine)"
-      :y1="top"
-      :x2="fretX(fretLine)"
-      :y2="bottomY"
-      :stroke="fretLine === windowStart && windowStart === 1 ? 'var(--color-primary)' : 'var(--color-border)'"
-      :stroke-width="fretLine === windowStart && windowStart === 1 ? 3 : 1"
-    />
+      <line
+        v-for="fretLine in fretLines"
+        :key="`fret-${fretLine}`"
+        :x1="fretX(fretLine)"
+        :y1="top"
+        :x2="fretX(fretLine)"
+        :y2="bottomY"
+        :stroke="fretLine === windowStart && windowStart === 1 ? 'var(--color-primary)' : 'var(--color-border)'"
+        :stroke-width="fretLine === windowStart && windowStart === 1 ? 3 : 1"
+      />
 
-    <line
-      v-for="(_, stringIndex) in openNotes"
-      :key="`string-${stringIndex}`"
-      :x1="stringLineStart"
-      :y1="stringY(stringIndex)"
-      :x2="right"
-      :y2="stringY(stringIndex)"
-      stroke="var(--color-muted)"
-      stroke-width="1"
-    />
-
-    <text
-      v-for="fretNumber in fretNumbers"
-      :key="`number-${fretNumber}`"
-      :x="fretX(fretNumber) + fretWidth / 2"
-      :y="height - 7"
-      text-anchor="middle"
-      font-size="10"
-      fill="var(--color-muted)"
-    >{{ fretNumber }}</text>
-
-    <g v-for="(position, index) in positions" :key="`position-${index}`">
-      <title>{{ noteLabel(position.note) }} · струна {{ position.string + 1 }} · лад {{ position.fret }}</title>
-      <circle
-        :cx="positionX(position.fret)"
-        :cy="stringY(position.string)"
-        :r="position.fret === 0 ? 9 : 11"
-        :fill="position.degree === 0 ? 'var(--color-tonic)' : 'var(--color-primary)'"
-        :stroke="position.degree === 0 ? 'var(--color-primary)' : 'none'"
+      <line
+        v-for="(_, stringIndex) in openNotes"
+        :key="`string-${stringIndex}`"
+        :x1="left"
+        :y1="stringY(stringIndex)"
+        :x2="right"
+        :y2="stringY(stringIndex)"
+        stroke="var(--color-muted)"
         stroke-width="1"
       />
-      <text
-        :x="positionX(position.fret)"
-        :y="stringY(position.string) + 3.5"
-        text-anchor="middle"
-        font-size="9"
-        font-weight="600"
-        fill="var(--color-on-primary)"
-      >{{ noteLabel(position.note) }}</text>
-    </g>
 
-    <g v-if="showMutes && mutedStrings.length > 0" fill="var(--color-muted)">
       <text
-        v-for="stringIndex in mutedStrings"
-        :key="`mute-${stringIndex}`"
-        :x="openX"
-        :y="stringY(stringIndex) + 5"
+        v-for="fretNumber in fretNumbers"
+        :key="`number-${fretNumber}`"
+        :x="fretX(fretNumber) + fretWidth / 2"
+        :y="height - 7"
         text-anchor="middle"
-        font-size="15"
-        font-weight="700"
-      >×</text>
-    </g>
-  </svg>
+        font-size="10"
+        fill="var(--color-muted)"
+      >{{ fretNumber }}</text>
+
+      <g v-for="(position, index) in positions" :key="`position-${index}`">
+        <title>{{ noteLabel(position.note) }} · струна {{ position.string + 1 }} · лад {{ position.fret }}</title>
+        <circle
+          :cx="positionX(position.fret)"
+          :cy="stringY(position.string)"
+          r="11"
+          :fill="position.fret === 0 ? '#ffffff' : (position.degree === 0 ? 'var(--color-tonic)' : 'var(--color-primary)')"
+          :stroke="position.fret === 0
+            ? (position.degree === 0 ? 'var(--color-tonic)' : 'var(--color-primary)')
+            : (position.degree === 0 ? 'var(--color-primary)' : 'none')"
+          stroke-width="1"
+        />
+        <text
+          :x="positionX(position.fret)"
+          :y="stringY(position.string) + 3.5"
+          text-anchor="middle"
+          font-size="9"
+          font-weight="600"
+          :fill="position.fret === 0 ? 'var(--color-text)' : 'var(--color-on-primary)'"
+        >{{ noteLabel(position.note) }}</text>
+      </g>
+
+      <g v-if="showMutes && mutedStrings.length > 0">
+        <g v-for="stringIndex in mutedStrings" :key="`mute-${stringIndex}`">
+          <circle
+            :cx="openX"
+            :cy="stringY(stringIndex)"
+            r="11"
+            fill="#ffffff"
+            stroke="var(--color-border-strong)"
+            stroke-width="1"
+          />
+          <text
+            :x="openX"
+            :y="stringY(stringIndex) + 5"
+            text-anchor="middle"
+            font-size="14"
+            font-weight="700"
+            fill="var(--color-muted)"
+          >×</text>
+        </g>
+      </g>
+    </svg>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -119,7 +134,6 @@ const windowEnd = computed(() =>
 
 const left = computed(() => (hasOpenColumn.value ? 46 : 26))
 const openX = computed(() => left.value - 20)
-const stringLineStart = computed(() => (hasOpenColumn.value ? openX.value : left.value))
 
 const columns = computed(() => windowEnd.value - windowStart.value + 1)
 const width = computed(() => left.value + columns.value * fretWidth + rightPad)
@@ -159,10 +173,12 @@ function positionX(fret: number): number {
 </script>
 
 <style scoped>
+.fretboard-scroll {
+  overflow-x: auto;
+}
+
 .fretboard-svg {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: 340px;
+  flex: none;
 }
 </style>

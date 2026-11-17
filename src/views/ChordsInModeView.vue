@@ -269,6 +269,8 @@ h1 {
 
 .chord-tonic {
   font-size: 1.05em;
+  font-weight: 100;
+  color: var(--color-overlay)
 }
 
 .row-actions {
