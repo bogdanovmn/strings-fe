@@ -13,7 +13,7 @@
         <span class="row-index">{{ index + 1 }}</span>
         <div class="row-control grow">
           <span>Аккорд</span>
-          <ChordPicker v-model="row.chordId" :chords="chordsStoreInstance.chords" />
+          <ChordPicker v-model="row.chordId" :chords="availableChords" />
         </div>
         <div class="row-control">
           <span>Тоника аккорда</span>
@@ -112,6 +112,8 @@ const matching = matchingStore()
 const rows = ref<Row[]>([{ chordId: null, tonic: 60 }])
 const searched = ref(false)
 
+const availableChords = computed(() => chordsStoreInstance.chords.filter(item => item.enabled))
+
 const canSubmit = computed(() =>
   rows.value.length > 0 && rows.value.every(row => row.chordId !== null)
 )
@@ -128,7 +130,7 @@ function entityClass(global: boolean): string {
 
 function addRow() {
   if (rows.value.length >= 20) return
-  rows.value.push({ chordId: chordsStoreInstance.chords[0]?.id ?? null, tonic: 60 })
+  rows.value.push({ chordId: availableChords.value[0]?.id ?? null, tonic: 60 })
 }
 
 function removeRow(index: number) {
@@ -170,7 +172,7 @@ function openChords(item: ModeMatch) {
 onMounted(async () => {
   await chordsStoreInstance.load()
   if (!rows.value[0].chordId) {
-    rows.value[0].chordId = chordsStoreInstance.chords[0]?.id ?? null
+    rows.value[0].chordId = availableChords.value[0]?.id ?? null
   }
 })
 </script>

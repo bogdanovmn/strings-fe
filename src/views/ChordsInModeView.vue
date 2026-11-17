@@ -11,7 +11,7 @@
     <div class="controls">
       <label class="control">
         <span>Лад</span>
-        <ModePicker v-model="modeId" :modes="modesStoreInstance.modes" />
+        <ModePicker v-model="modeId" :modes="availableModes" />
       </label>
       <div class="control">
         <span>Тоника лада</span>
@@ -22,7 +22,7 @@
     <p v-if="matching.error" class="error">{{ matching.error }}</p>
 
     <div v-if="!modeId" class="empty">
-      Выберите лад или добавьте его в справочниках.
+      Выберите лад или включите его в справочниках.
     </div>
 
     <template v-else-if="matching.chordsInMode.length > 0">
@@ -38,8 +38,8 @@
               :class="entityClass(item.global)"
               :title="item.global ? 'Общий аккорд' : 'Мой аккорд'"
             >
-              <span class="chord-tonic">{{ noteLabel(item.rootNote) }}</span>
-              <span>{{ item.chordName }}</span>
+              <span class="chord-symbol">{{ noteLabel(item.rootNote) }}{{ item.chordSuffix }}</span>
+              <span class="chord-full-name">{{ item.chordName }}</span>
             </strong>
           </div>
 
@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BackButton from '@/components/BackButton.vue'
 import ModePicker from '@/components/ModePicker.vue'
@@ -108,6 +108,8 @@ const modeId = ref<string | null>(queryString('modeId'))
 const tonic = ref(initialTonic())
 const ready = ref(false)
 const openInfo = ref<string | null>(null)
+
+const availableModes = computed(() => modesStoreInstance.modes.filter(item => item.enabled))
 
 function initialTonic(): number {
   const value = queryNumber('tonic')
@@ -166,8 +168,8 @@ async function load(): Promise<void> {
 onMounted(async () => {
   await modesStoreInstance.load()
   const requestedModeId = modeId.value
-  modeId.value = modesStoreInstance.modes.find(item => item.id === requestedModeId)?.id
-    ?? modesStoreInstance.modes[0]?.id
+  modeId.value = availableModes.value.find(item => item.id === requestedModeId)?.id
+    ?? availableModes.value[0]?.id
     ?? null
   ready.value = true
   await load()
@@ -271,6 +273,16 @@ h1 {
   font-size: 1.05em;
   font-weight: 100;
   color: var(--color-overlay)
+}
+
+.chord-symbol {
+  font-size: 1.05em;
+}
+
+.chord-full-name {
+  color: var(--color-muted);
+  font-size: 0.85em;
+  font-weight: 400;
 }
 
 .row-actions {

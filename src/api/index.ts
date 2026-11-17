@@ -15,6 +15,7 @@ export interface Instrument {
   frets: number
   tuning: number[]
   global: boolean
+  enabled: boolean
 }
 
 export interface InstrumentRequest {
@@ -30,6 +31,7 @@ export interface Mode {
   name: string
   intervals: number[]
   global: boolean
+  enabled: boolean
 }
 
 export interface ModeRequest {
@@ -42,12 +44,15 @@ export interface Chord {
   id: string
   userId: string | null
   name: string
+  suffix: string
   intervals: number[]
   global: boolean
+  enabled: boolean
 }
 
 export interface ChordRequest {
   name: string
+  suffix: string
   intervals: number[]
   global?: boolean
 }
@@ -91,6 +96,7 @@ export interface Fingerings {
 export interface ChordInMode {
   chordId: string
   chordName: string
+  chordSuffix: string
   intervals: number[]
   global: boolean
   rootMidi: number
@@ -180,6 +186,10 @@ export function updateInstrument(id: string, request: InstrumentRequest): Promis
   return authApi.put<void>(`/instruments/${id}`, request)
 }
 
+export function updateInstrumentEnabled(id: string, enabled: boolean): Promise<void> {
+  return authApi.put<void>(`/instruments/${id}/enabled`, { enabled })
+}
+
 export function deleteInstrument(id: string): Promise<void> {
   return authApi.delete<void>(`/instruments/${id}`)
 }
@@ -200,6 +210,10 @@ export function updateMode(id: string, request: ModeRequest): Promise<void> {
   return authApi.put<void>(`/modes/${id}`, request)
 }
 
+export function updateModeEnabled(id: string, enabled: boolean): Promise<void> {
+  return authApi.put<void>(`/modes/${id}/enabled`, { enabled })
+}
+
 export function deleteMode(id: string): Promise<void> {
   return authApi.delete<void>(`/modes/${id}`)
 }
@@ -218,6 +232,10 @@ export function createChord(request: ChordRequest): Promise<Chord> {
 
 export function updateChord(id: string, request: ChordRequest): Promise<void> {
   return authApi.put<void>(`/chords/${id}`, request)
+}
+
+export function updateChordEnabled(id: string, enabled: boolean): Promise<void> {
+  return authApi.put<void>(`/chords/${id}/enabled`, { enabled })
 }
 
 export function deleteChord(id: string): Promise<void> {

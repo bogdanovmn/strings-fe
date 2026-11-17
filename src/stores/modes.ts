@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as api from '@/api'
 import type { Mode, ModeRequest } from '@/api'
@@ -36,10 +36,20 @@ export const modesStore = defineStore('modesStore', () => {
     await load(true)
   }
 
+  async function setEnabled(id: string, enabled: boolean): Promise<void> {
+    await api.updateModeEnabled(id, enabled)
+    const item = modes.value.find(entry => entry.id === id)
+    if (item) item.enabled = enabled
+  }
+
   async function remove(id: string): Promise<void> {
     await api.deleteMode(id)
     modes.value = modes.value.filter(item => item.id !== id)
   }
 
-  return { modes, isLoading, error, load, byId, create, update, remove }
+  return { modes, isLoading, error, load, byId, create, update, setEnabled, remove }
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(modesStore, import.meta.hot))
+}

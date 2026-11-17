@@ -13,6 +13,12 @@
         <input v-model="name" maxlength="100" placeholder="Например, Мажорное трезвучие" required />
       </label>
 
+      <label>
+        Обозначение (суффикс к тонике)
+        <input v-model="suffix" maxlength="20" placeholder="m, 7, sus4; для мажорного оставьте пустым" />
+      </label>
+      <p class="hint">Пример обозначения: C{{ suffix }}</p>
+
       <div class="field-label">Интервалы</div>
       <IntervalEditor v-model="intervals" :min-steps="2" :max-steps="6" />
 
@@ -50,6 +56,7 @@ const auth = authStore()
 const chordsStoreInstance = chordsStore()
 
 const name = ref('')
+const suffix = ref('')
 const intervals = ref<number[]>([4, 3])
 const global = ref(false)
 const loading = ref(false)
@@ -60,6 +67,7 @@ const isEdit = computed(() => Boolean(props.id))
 
 const valid = computed(() =>
   name.value.trim().length > 0
+  && suffix.value.trim().length <= 20
   && intervals.value.length >= 2
   && intervals.value.length <= 6
   && intervals.value.every(step => step > 0)
@@ -71,6 +79,7 @@ async function save() {
   error.value = null
   const request: ChordRequest = {
     name: name.value.trim(),
+    suffix: suffix.value.trim(),
     intervals: [...intervals.value]
   }
   if (!isEdit.value && auth.isAdmin) {
@@ -96,6 +105,7 @@ onMounted(async () => {
   try {
     const item = await getChord(props.id)
     name.value = item.name
+    suffix.value = item.suffix
     intervals.value = [...item.intervals]
     global.value = item.global
   } catch (e) {
@@ -152,6 +162,13 @@ h1 {
   align-items: center;
   gap: 0.5rem;
   margin: 0.8rem 0;
+}
+
+.hint {
+  margin-top: -0.7rem;
+  margin-bottom: 1rem;
+  color: var(--color-muted);
+  font-size: 0.82rem;
 }
 
 .global-row label {

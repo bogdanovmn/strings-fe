@@ -7,7 +7,7 @@
   >
     <option value="" disabled>{{ placeholder }}</option>
     <option
-      v-for="item in chords"
+      v-for="item in available"
       :key="item.id"
       :value="item.id"
       :class="item.global ? 'option-global' : 'option-own'"
@@ -18,9 +18,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Chord } from '@/api'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string | null
   chords: Chord[]
   placeholder?: string
@@ -31,6 +32,8 @@ withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{ 'update:modelValue': [value: string | null] }>()
+
+const available = computed(() => props.chords.filter(item => item.enabled))
 </script>
 
 <style scoped>

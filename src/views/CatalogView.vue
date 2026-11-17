@@ -6,6 +6,7 @@
     </div>
     <p class="subtitle">
       Общие записи доступны всем и выделены жирным, ваши собственные — цветом. Редактировать общие записи может только администратор.
+      Переключатель ON/OFF исключает запись из выбора и расчётов только для вас.
     </p>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -42,7 +43,7 @@
       <div v-if="instrumentsStoreInstance.isLoading && instruments.length === 0" class="empty">Загрузка…</div>
       <div v-else-if="instruments.length === 0" class="empty">Пока нет доступных инструментов.</div>
       <div v-else class="item-list">
-        <div v-for="item in instruments" :key="item.id" class="item-row">
+        <div v-for="item in instruments" :key="item.id" class="item-row" :class="{ 'is-disabled': !item.enabled }">
           <div class="item-main">
             <strong :class="entityClass(item.global)" :title="item.global ? 'Общий инструмент' : 'Мой инструмент'">
               {{ item.name }}
@@ -52,6 +53,12 @@
               {{ item.tuning.map(noteName).join(' ') }}
             </span>
           </div>
+          <ToggleSwitch
+            :model-value="item.enabled"
+            :label="`Использовать инструмент «${item.name}»`"
+            :disabled="busyId !== null"
+            @update:model-value="toggleInstrument(item, $event)"
+          />
           <div v-if="canEdit(item.global)" class="item-actions">
             <router-link
               class="icon-action"
@@ -91,13 +98,19 @@
       <div v-if="modesStoreInstance.isLoading && modes.length === 0" class="empty">Загрузка…</div>
       <div v-else-if="modes.length === 0" class="empty">Пока нет доступных ладов.</div>
       <div v-else class="item-list">
-        <div v-for="item in modes" :key="item.id" class="item-row">
+        <div v-for="item in modes" :key="item.id" class="item-row" :class="{ 'is-disabled': !item.enabled }">
           <div class="item-main">
             <strong :class="entityClass(item.global)" :title="item.global ? 'Общий лад' : 'Мой лад'">
               {{ item.name }}
             </strong>
             <span class="meta">{{ formula(item.intervals) }}</span>
           </div>
+          <ToggleSwitch
+            :model-value="item.enabled"
+            :label="`Использовать лад «${item.name}»`"
+            :disabled="busyId !== null"
+            @update:model-value="toggleMode(item, $event)"
+          />
           <div v-if="canEdit(item.global)" class="item-actions">
             <router-link
               class="icon-action"
@@ -137,13 +150,19 @@
       <div v-if="chordsStoreInstance.isLoading && chords.length === 0" class="empty">Загрузка…</div>
       <div v-else-if="chords.length === 0" class="empty">Пока нет доступных аккордов.</div>
       <div v-else class="item-list">
-        <div v-for="item in chords" :key="item.id" class="item-row">
+        <div v-for="item in chords" :key="item.id" class="item-row" :class="{ 'is-disabled': !item.enabled }">
           <div class="item-main">
             <strong :class="entityClass(item.global)" :title="item.global ? 'Общий аккорд' : 'Мой аккорд'">
               {{ item.name }}
             </strong>
-            <span class="meta">{{ formula(item.intervals) }}</span>
+            <span class="meta">{{ formula(item.intervals) }} · обозначение: C{{ item.suffix }}</span>
           </div>
+          <ToggleSwitch
+            :model-value="item.enabled"
+            :label="`Использовать аккорд «${item.name}»`"
+            :disabled="busyId !== null"
+            @update:model-value="toggleChord(item, $event)"
+          />
           <div v-if="canEdit(item.global)" class="item-actions">
             <router-link
               class="icon-action"
@@ -173,6 +192,7 @@
 import { computed, onMounted, ref } from 'vue'
 import BackButton from '@/components/BackButton.vue'
 import AppIcon from '@/components/AppIcon.vue'
+import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import type { IconName } from '@/components/icons'
 import { instrumentsStore } from '@/stores/instruments'
 import { modesStore } from '@/stores/modes'
@@ -196,6 +216,7 @@ const chordsStoreInstance = chordsStore()
 
 const activeTab = ref<CatalogTab>('instruments')
 const error = ref<string | null>(null)
+const busyId = ref<string | null>(null)
 
 const instruments = computed(() => instrumentsStoreInstance.instruments)
 const modes = computed(() => modesStoreInstance.modes)
@@ -230,6 +251,31 @@ async function removeInstrument(item: Instrument) {
     await instrumentsStoreInstance.remove(item.id)
   } catch (e) {
     error.value = errorMessage(e)
+  }
+}
+
+async function toggleInstrument(item: Instrument, enabled: boolean) {
+  await toggleEnabled(item.id, () => instrumentsStoreInstance.setEnabled(item.id, enabled))
+}
+
+async function toggleMode(item: Mode, enabled: boolean) {
+  await toggleEnabled(item.id, () => modesStoreInstance.setEnabled(item.id, enabled))
+}
+
+async function toggleChord(item: Chord, enabled: boolean) {
+  await toggleEnabled(item.id, () => chordsStoreInstance.setEnabled(item.id, enabled))
+}
+
+async function toggleEnabled(id: string, action: () => Promise<void>) {
+  if (busyId.value !== null) return
+  busyId.value = id
+  error.value = null
+  try {
+    await action()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busyId.value = null
   }
 }
 
@@ -304,6 +350,14 @@ h1 {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
+}
+
+.item-row.is-disabled {
+  background: var(--color-surface-alt);
+}
+
+.item-row.is-disabled .item-main {
+  opacity: 0.6;
 }
 
 .item-main {

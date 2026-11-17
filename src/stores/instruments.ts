@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as api from '@/api'
 import type { Instrument, InstrumentRequest } from '@/api'
@@ -36,10 +36,20 @@ export const instrumentsStore = defineStore('instrumentsStore', () => {
     await load(true)
   }
 
+  async function setEnabled(id: string, enabled: boolean): Promise<void> {
+    await api.updateInstrumentEnabled(id, enabled)
+    const item = instruments.value.find(entry => entry.id === id)
+    if (item) item.enabled = enabled
+  }
+
   async function remove(id: string): Promise<void> {
     await api.deleteInstrument(id)
     instruments.value = instruments.value.filter(item => item.id !== id)
   }
 
-  return { instruments, isLoading, error, load, byId, create, update, remove }
+  return { instruments, isLoading, error, load, byId, create, update, setEnabled, remove }
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(instrumentsStore, import.meta.hot))
+}

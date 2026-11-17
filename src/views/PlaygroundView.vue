@@ -27,16 +27,16 @@
     <div class="controls">
       <label class="control">
         <span>Инструмент</span>
-        <InstrumentPicker v-model="instrumentId" :instruments="instrumentsStoreInstance.instruments" />
+        <InstrumentPicker v-model="instrumentId" :instruments="availableInstruments" />
       </label>
 
       <label v-if="kind === 'scale'" class="control">
         <span>Лад</span>
-        <ModePicker v-model="modeId" :modes="modesStoreInstance.modes" />
+        <ModePicker v-model="modeId" :modes="availableModes" />
       </label>
       <label v-else class="control">
         <span>Аккорд</span>
-        <ChordPicker v-model="chordId" :chords="chordsStoreInstance.chords" />
+        <ChordPicker v-model="chordId" :chords="availableChords" />
       </label>
 
       <div class="control">
@@ -78,13 +78,13 @@
 
     <div v-if="!canBuild" class="empty">
       <template v-if="!instrumentId">
-        Сначала добавьте инструмент в разделе «Справочники».
+        Сначала добавьте инструмент или включите его в разделе «Справочники».
       </template>
       <template v-else-if="kind === 'scale' && !modeId">
-        Выберите лад или добавьте его в справочниках.
+        Выберите лад или включите его в справочниках.
       </template>
       <template v-else-if="kind !== 'scale' && !chordId">
-        Выберите аккорд или добавьте его в справочниках.
+        Выберите аккорд или включите его в справочниках.
       </template>
     </div>
 
@@ -260,6 +260,16 @@ const selectedInstrument = computed(() =>
 )
 const openNotes = computed(() => selectedInstrument.value?.tuning ?? [])
 const frets = computed(() => selectedInstrument.value?.frets ?? 0)
+
+const availableInstruments = computed(() =>
+  instrumentsStoreInstance.instruments.filter(item => item.enabled)
+)
+const availableModes = computed(() =>
+  modesStoreInstance.modes.filter(item => item.enabled)
+)
+const availableChords = computed(() =>
+  chordsStoreInstance.chords.filter(item => item.enabled)
+)
 
 const canBuild = computed(() => {
   if (!instrumentId.value) return false
@@ -472,14 +482,14 @@ onMounted(async () => {
     modesStoreInstance.load(),
     chordsStoreInstance.load()
   ])
-  if (!instrumentsStoreInstance.instruments.some(item => item.id === instrumentId.value)) {
-    instrumentId.value = instrumentsStoreInstance.instruments[0]?.id ?? null
+  if (!availableInstruments.value.some(item => item.id === instrumentId.value)) {
+    instrumentId.value = availableInstruments.value[0]?.id ?? null
   }
-  if (!modesStoreInstance.modes.some(item => item.id === modeId.value)) {
-    modeId.value = modesStoreInstance.modes[0]?.id ?? null
+  if (!availableModes.value.some(item => item.id === modeId.value)) {
+    modeId.value = availableModes.value[0]?.id ?? null
   }
-  if (!chordsStoreInstance.chords.some(item => item.id === chordId.value)) {
-    chordId.value = chordsStoreInstance.chords[0]?.id ?? null
+  if (!availableChords.value.some(item => item.id === chordId.value)) {
+    chordId.value = availableChords.value[0]?.id ?? null
   }
   saveForm()
   ready.value = true
