@@ -93,6 +93,13 @@ export interface Fingerings {
   truncated: boolean
 }
 
+export interface FretboardSettings {
+  minSpan: number
+  maxSpan: number
+  defaultScaleSpan: number
+  defaultChordSpan: number
+}
+
 export interface ChordInMode {
   chordId: string
   chordName: string
@@ -142,8 +149,6 @@ export const MIN_STRINGS = 3
 export const MAX_STRINGS = 12
 export const MIN_MIDI = 12
 export const MAX_MIDI = 108
-export const MIN_SPAN = 2
-export const MAX_SPAN = 12
 
 export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
@@ -244,6 +249,10 @@ export function deleteChord(id: string): Promise<void> {
 
 export function getFretboard(instrumentId: string): Promise<FretboardGrid> {
   return authApi.get<FretboardGrid>(`/fretboard/instruments/${instrumentId}`)
+}
+
+export function getFretboardSettings(): Promise<FretboardSettings> {
+  return authApi.get<FretboardSettings>('/fretboard/settings')
 }
 
 export function getScales(query: ScaleQuery): Promise<Fingerings> {

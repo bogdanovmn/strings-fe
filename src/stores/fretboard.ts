@@ -1,15 +1,35 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as api from '@/api'
-import type { Fingerings, FretboardGrid } from '@/api'
+import type { Fingerings, FretboardGrid, FretboardSettings } from '@/api'
+
+// Used until the backend settings are loaded (mirrors strings.fretboard in application.yml).
+const DEFAULT_SETTINGS: FretboardSettings = {
+  minSpan: 2,
+  maxSpan: 5,
+  defaultScaleSpan: 5,
+  defaultChordSpan: 3
+}
 
 export const fretboardStore = defineStore('fretboardStore', () => {
   const grid = ref<FretboardGrid | null>(null)
   const fingerings = ref<Fingerings | null>(null)
+  const settings = ref<FretboardSettings>(DEFAULT_SETTINGS)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const gridCache = new Map<string, FretboardGrid>()
   let requestId = 0
+  let settingsLoaded = false
+
+  async function loadSettings(): Promise<void> {
+    if (settingsLoaded) return
+    try {
+      settings.value = await api.getFretboardSettings()
+      settingsLoaded = true
+    } catch {
+      // Keep the fallback limits so the form stays usable.
+    }
+  }
 
   async function loadGrid(instrumentId: string): Promise<void> {
     const cached = gridCache.get(instrumentId)
@@ -61,5 +81,17 @@ export const fretboardStore = defineStore('fretboardStore', () => {
     isLoading.value = false
   }
 
-  return { grid, fingerings, isLoading, error, loadGrid, loadScales, loadArpeggios, loadChordShapes, reset }
+  return {
+    grid,
+    fingerings,
+    settings,
+    isLoading,
+    error,
+    loadSettings,
+    loadGrid,
+    loadScales,
+    loadArpeggios,
+    loadChordShapes,
+    reset
+  }
 })

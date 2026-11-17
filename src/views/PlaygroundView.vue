@@ -45,7 +45,7 @@
       </div>
 
       <label class="control small">
-        <span>Окно, ладов</span>
+        <span>Окно, ладов ({{ fretboard.settings.minSpan }}–{{ fretboard.settings.maxSpan }})</span>
         <select v-model.number="span">
           <option v-for="value in spanOptions" :key="value" :value="value">{{ value }}</option>
         </select>
@@ -249,7 +249,11 @@ const span = ref<number>(queryNumber('span') ?? savedNumber(savedForm.span) ?? (
 const view = ref<ShapeView>(readShapeView())
 
 const ready = ref(false)
-const spanOptions = Array.from({ length: 11 }, (_, index) => index + 2)
+const spanOptions = computed(() => {
+  const { minSpan, maxSpan } = fretboard.settings
+  const count = Math.max(0, maxSpan - minSpan + 1)
+  return Array.from({ length: count }, (_, index) => minSpan + index)
+})
 
 const positionFilter = ref<number[]>([])
 const mutedFilter = ref<boolean[]>([])
@@ -445,6 +449,11 @@ function parseKind(value: unknown): Kind {
   return value === 'arpeggio' || value === 'chord' ? value : 'scale'
 }
 
+function clampSpan(): void {
+  const { minSpan, maxSpan } = fretboard.settings
+  span.value = Math.min(Math.max(Math.round(span.value), minSpan), maxSpan)
+}
+
 async function loadAll(): Promise<void> {
   resetFilters()
   if (!canBuild.value || !instrumentId.value) {
@@ -480,8 +489,10 @@ onMounted(async () => {
   await Promise.all([
     instrumentsStoreInstance.load(),
     modesStoreInstance.load(),
-    chordsStoreInstance.load()
+    chordsStoreInstance.load(),
+    fretboard.loadSettings()
   ])
+  clampSpan()
   if (!availableInstruments.value.some(item => item.id === instrumentId.value)) {
     instrumentId.value = availableInstruments.value[0]?.id ?? null
   }
