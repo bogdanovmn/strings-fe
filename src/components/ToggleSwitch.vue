@@ -6,7 +6,7 @@
     :aria-checked="modelValue"
     :aria-label="label"
     :disabled="disabled"
-    :title="modelValue ? 'Используется' : 'Не используется'"
+    :title="title ?? (modelValue ? 'Используется' : 'Не используется')"
     @click="emit('update:modelValue', !modelValue)"
   >
     <span class="toggle-track" :class="{ on: modelValue }" aria-hidden="true">
@@ -23,11 +23,13 @@ withDefaults(defineProps<{
   modelValue: boolean
   disabled?: boolean
   label?: string
+  title?: string
   onLabel?: string
   offLabel?: string
 }>(), {
   disabled: false,
   label: undefined,
+  title: undefined,
   onLabel: 'ON',
   offLabel: 'OFF'
 })

@@ -6,6 +6,7 @@
     </div>
     <p class="subtitle">
       Выберите инструмент, материал и окно ладов. Открытые струны разрешены и не расширяют окно.
+      В представлении «Гриф» над вариантами показывается весь гриф до 12 лада — его можно скрыть переключателем.
     </p>
 
     <div class="tabs material-tabs" role="tablist" aria-label="Материал">
@@ -91,6 +92,29 @@
     <div v-else-if="fretboard.isLoading && !fretboard.fingerings" class="empty">Строим аппликатуры…</div>
 
     <template v-else-if="fretboard.fingerings">
+      <section v-if="view === 'fretboard'" class="neck-panel">
+        <div class="neck-head">
+          <span class="neck-title">
+            <AppIcon name="shapes" />
+            Гриф, лады 0–{{ neckFrets }}<template v-if="materialLabel"> · {{ materialLabel }}</template>
+          </span>
+          <ToggleSwitch
+            v-model="showNeck"
+            label="Показывать гриф"
+            title="Показывать гриф целиком"
+            on-label="Виден"
+            off-label="Скрыт"
+          />
+        </div>
+        <FullFretboard
+          v-if="showNeck"
+          :open-notes="openNotes"
+          :frets="frets"
+          :positions="neckNotes"
+          :max-fret="neckFrets"
+        />
+      </section>
+
       <div class="results-head">
         <span class="count">
           вариантов: {{ filteredFingerings.length }}<template v-if="hasActiveFilters"> из {{ visibleFingerings.length }}</template>
@@ -192,13 +216,16 @@ import ModePicker from '@/components/ModePicker.vue'
 import ChordPicker from '@/components/ChordPicker.vue'
 import TonicPicker from '@/components/TonicPicker.vue'
 import ShapeCard from '@/components/ShapeCard.vue'
+import FullFretboard from '@/components/FullFretboard.vue'
+import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import type { IconName } from '@/components/icons'
 import { instrumentsStore } from '@/stores/instruments'
 import { modesStore } from '@/stores/modes'
 import { chordsStore } from '@/stores/chords'
 import { fretboardStore } from '@/stores/fretboard'
-import type { Fingering } from '@/api'
+import type { Fingering, FretboardPosition } from '@/api'
+import { floorMod, noteName } from '@/api'
 
 type Kind = 'scale' | 'arpeggio' | 'chord'
 type ShapeView = 'fretboard' | 'tablature'
@@ -232,6 +259,7 @@ const kinds: { value: Kind; label: string; icon: IconName }[] = [
 
 const FORM_KEY = 'strings.playground.form'
 const SHAPE_VIEW_KEY = 'strings.shapes.view'
+const NECK_VISIBLE_KEY = 'strings.shapes.neck'
 
 const route = useRoute()
 const instrumentsStoreInstance = instrumentsStore()
@@ -247,6 +275,7 @@ const chordId = ref<string | null>(queryString('chordId') ?? savedString(savedFo
 const tonic = ref<number>(queryNumber('tonic') ?? savedNumber(savedForm.tonic) ?? 60)
 const span = ref<number>(queryNumber('span') ?? savedNumber(savedForm.span) ?? (kind.value === 'chord' ? 4 : 5))
 const view = ref<ShapeView>(readShapeView())
+const showNeck = ref(readNeckVisibility())
 
 const ready = ref(false)
 const spanOptions = computed(() => {
@@ -275,10 +304,76 @@ const availableChords = computed(() =>
   chordsStoreInstance.chords.filter(item => item.enabled)
 )
 
+const selectedMode = computed(() =>
+  availableModes.value.find(item => item.id === modeId.value) ?? null
+)
+const selectedChord = computed(() =>
+  availableChords.value.find(item => item.id === chordId.value) ?? null
+)
+
 const canBuild = computed(() => {
   if (!instrumentId.value) return false
   if (kind.value === 'scale') return Boolean(modeId.value)
   return Boolean(chordId.value)
+})
+
+const neckFrets = computed(() => Math.min(12, frets.value > 0 ? frets.value : 12))
+
+const materialLabel = computed(() => {
+  if (kind.value === 'scale') {
+    return selectedMode.value
+      ? `${noteName(tonic.value)} · ${selectedMode.value.name}`
+      : null
+  }
+  return selectedChord.value
+    ? `${noteName(tonic.value)}${selectedChord.value.suffix} · ${selectedChord.value.name}`
+    : null
+})
+
+const materialIntervals = computed(() =>
+  kind.value === 'scale'
+    ? selectedMode.value?.intervals ?? []
+    : selectedChord.value?.intervals ?? []
+)
+
+// Degree of every pitch class of the selected mode/chord, relative to the tonic.
+const degreesByPitchClass = computed(() => {
+  const result = new Map<number, number>()
+  if (materialIntervals.value.length === 0) return result
+  const pitchClasses: number[] = []
+  let offset = 0
+  pitchClasses.push(offset)
+  for (const step of materialIntervals.value) {
+    offset += step
+    const pitchClass = floorMod(offset, 12)
+    if (!pitchClasses.includes(pitchClass)) {
+      pitchClasses.push(pitchClass)
+    }
+  }
+  pitchClasses.forEach((pitchClass, degree) => result.set(pitchClass, degree))
+  return result
+})
+
+const neckNotes = computed<FretboardPosition[]>(() => {
+  const grid = fretboard.grid
+  const degreeFor = degreesByPitchClass.value
+  if (!grid || !canBuild.value || degreeFor.size === 0) return []
+  const notes: FretboardPosition[] = []
+  for (const string of grid.strings) {
+    for (const note of string.notes) {
+      if (note.fret > neckFrets.value) break
+      const degree = degreeFor.get(floorMod(note.midi - tonic.value, 12))
+      if (degree === undefined) continue
+      notes.push({
+        string: string.index,
+        fret: note.fret,
+        midi: note.midi,
+        note: note.note,
+        degree
+      })
+    }
+  }
+  return notes
 })
 
 // After the 12th fret the fretboard repeats structurally, so shapes whose leftmost note is above it are not shown.
@@ -433,6 +528,14 @@ function readShapeView(): ShapeView {
   }
 }
 
+function readNeckVisibility(): boolean {
+  try {
+    return window.localStorage.getItem(NECK_VISIBLE_KEY) !== 'hidden'
+  } catch {
+    return true
+  }
+}
+
 function queryString(key: string): string | null {
   const value = route.query[key]
   return typeof value === 'string' && value.length > 0 ? value : null
@@ -521,6 +624,14 @@ watch(view, (value) => {
     // Storage may be unavailable; the in-memory setting still works.
   }
 })
+
+watch(showNeck, (value) => {
+  try {
+    window.localStorage.setItem(NECK_VISIBLE_KEY, value ? 'shown' : 'hidden')
+  } catch {
+    // Storage may be unavailable; the in-memory setting still works.
+  }
+})
 </script>
 
 <style scoped>
@@ -605,6 +716,32 @@ h1 {
 .segmented button.active {
   background: var(--color-primary);
   color: var(--color-on-primary);
+}
+
+.neck-panel {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.neck-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.neck-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-muted);
 }
 
 .results-head {
